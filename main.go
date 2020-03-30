@@ -13,6 +13,7 @@ func main() {
 
 	//router list
 	r.HandleFunc("/api/products", controllers.Products).Methods("GET")
+	r.HandleFunc("/api/product/create", controllers.Create).Methods("POST")
 
 	//serve a server
 	_ = http.ListenAndServe(":8000", r)
