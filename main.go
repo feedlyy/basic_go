@@ -12,8 +12,9 @@ func main() {
 	r := mux.NewRouter()
 
 	//router list
-	r.HandleFunc("/api/products", controllers.Products).Methods("GET")
+	r.HandleFunc("/api/products", controllers.Index).Methods("GET")
 	r.HandleFunc("/api/product/create", controllers.Create).Methods("POST")
+	r.HandleFunc("/api/product/{id}", controllers.Show).Methods("GET")
 
 	//serve a server
 	_ = http.ListenAndServe(":8000", r)
