@@ -60,6 +60,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 			arr_products = append(arr_products, products)
 		}
 	}
+	defer db.Close()
 
 	//cek datanya
 	if arr_products == nil {
@@ -109,6 +110,66 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	response.Message = "Success"
 	response.Data = arr_products
 
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func Update(w http.ResponseWriter, r *http.Request) {
+	var products models.Products
+	var arr_products []models.Products
+	var response models.Response
+
+	//get the id from url
+	params := mux.Vars(r)
+	Id := params["id"]
+
+	//get form value
+	item := r.FormValue("item")
+	quantity := r.FormValue("quantity")
+
+	db := database.Connect()
+
+	rows, err := db.Query("select * from products where id = ?", Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(&products.Id, &products.Item, &products.Quantity); err != nil {
+			log.Fatal(err.Error())
+		} else {
+			arr_products = append(arr_products, products)
+		}
+	}
+
+	//validation if id exist or not
+	if arr_products == nil {
+		response.Message = "Id not found"
+		response.Data = nil
+		w.WriteHeader(404)
+	} else {
+		_, err := db.Exec("update products set item = ?, quantity = ? where id = ?",
+			item, quantity, Id)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		rows, err := db.Query("select * from products where id = ?", Id)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for rows.Next() {
+			if err := rows.Scan(&products.Id, &products.Item, &products.Quantity); err != nil {
+				log.Fatal(err.Error())
+			} else {
+				arr_products = nil //kosongkan dulu dari pengecekan data sebelumnya
+				arr_products = append(arr_products, products)
+			}
+		}
+		response.Message = "Success"
+		response.Data = arr_products
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(response)
 }
