@@ -170,6 +170,54 @@ func Update(w http.ResponseWriter, r *http.Request) {
 		response.Message = "Success"
 		response.Data = arr_products
 	}
+	defer db.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func Delete(w http.ResponseWriter, r *http.Request) {
+	var products models.Products
+	var arr_products []models.Products
+	var response models.Response
+
+	//get the id from url
+	params := mux.Vars(r)
+	Id := params["id"]
+
+	db := database.Connect()
+
+	//search for display deleted item
+	rows, err := db.Query("select * from products where id = ?", Id)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(&products.Id, &products.Item, &products.Quantity); err != nil {
+			log.Fatal(err)
+		} else {
+			arr_products = append(arr_products, products)
+		}
+	}
+
+	//check id given id is exist
+	if arr_products == nil {
+		response.Message = "Id not found"
+		response.Data = nil
+		w.WriteHeader(404)
+	} else {
+		_, err := db.Exec("delete from products where id = ?", Id)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		response.Message = "Delete Success"
+		response.Data = arr_products
+	}
+
+	defer db.Close()
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(response)
 }
