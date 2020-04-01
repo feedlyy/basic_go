@@ -4,9 +4,14 @@ import (
 	"basic_go/app/models"
 	"basic_go/database"
 	"encoding/json"
+	"github.com/go-playground/locales/en"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator"
 	"github.com/gorilla/mux"
+	en_translations "gopkg.in/go-playground/validator.v10/translations/en"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 func Index(w http.ResponseWriter, r *http.Request) {
@@ -81,37 +86,79 @@ func Create(w http.ResponseWriter, r *http.Request) {
 	var arr_products []models.Products
 	var response models.Response
 
+	//form value input
 	item := r.FormValue("item")
 	quantity := r.FormValue("quantity")
 
-	db := database.Connect()
+	//translator for validator input
+	translator := en.New()
+	uni := ut.New(translator, translator)
 
-	rows, err := db.Exec("insert into products(item, quantity) values (?, ?)", item, quantity)
-	if err != nil {
+	// this is usually known or extracted from http 'Accept-Language' header
+	// also see uni.FindTranslator(...)
+	trans, found := uni.GetTranslator("en")
+	if !found {
+		log.Fatal("translator not found")
+	}
+
+	v := validator.New()
+
+	if err := en_translations.RegisterDefaultTranslations(v, trans); err != nil {
 		log.Fatal(err)
 	}
 
-	lastId, _ := rows.LastInsertId()
+	_ = v.RegisterTranslation("required", trans, func(ut ut.Translator) error {
+		return ut.Add("required", "{0} is a required field", true) // see universal-translator for details
+	}, func(ut ut.Translator, fe validator.FieldError) string {
+		t, _ := ut.T("required", fe.Field())
+		return t
+	})
 
-	getLast, err := db.Query("select * from products where id = ?", lastId)
-	if err != nil {
-		log.Fatal(err)
+	parse, _ := strconv.Atoi(quantity)
+
+	check := models.Products{
+		Id:       0,
+		Item:     item,
+		Quantity: parse,
 	}
 
-	for getLast.Next() {
-		if err := getLast.Scan(&products.Id, &products.Item, &products.Quantity); err != nil {
-			log.Fatal(err.Error())
-		} else {
-			arr_products = append(arr_products, products)
+	err := v.Struct(check)
+
+	if err != nil {
+		for _, errors := range err.(validator.ValidationErrors) {
+			w.WriteHeader(400)
+			_ = json.NewEncoder(w).Encode(errors.Translate(trans))
 		}
+	} else {
+		db := database.Connect()
+
+		rows, err := db.Exec("insert into products(item, quantity) values (?, ?)", item, quantity)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		lastId, _ := rows.LastInsertId()
+
+		getLast, err := db.Query("select * from products where id = ?", lastId)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		for getLast.Next() {
+			if err := getLast.Scan(&products.Id, &products.Item, &products.Quantity); err != nil {
+				log.Fatal(err.Error())
+			} else {
+				arr_products = append(arr_products, products)
+			}
+		}
+		defer db.Close()
+
+		response.Message = "Success"
+		response.Data = arr_products
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(response)
 	}
-	defer db.Close()
-
-	response.Message = "Success"
-	response.Data = arr_products
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
 }
 
 func Update(w http.ResponseWriter, r *http.Request) {
