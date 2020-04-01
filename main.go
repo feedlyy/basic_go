@@ -16,6 +16,7 @@ func main() {
 	r.HandleFunc("/api/product/create", controllers.Create).Methods("POST")
 	r.HandleFunc("/api/product/{id}", controllers.Show).Methods("GET")
 	r.HandleFunc("/api/product/{id}", controllers.Update).Methods("PUT")
+	r.HandleFunc("/api/product/{id}", controllers.Delete).Methods("DELETE")
 
 	//serve a server
 	_ = http.ListenAndServe(":8000", r)
